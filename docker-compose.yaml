@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  surveys:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - DEBUG=True
+    ports:
+      - 8000:8000

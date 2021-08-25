@@ -1,0 +1,4 @@
+django==2.2.10
+djangorestframework==3.11.2
+drf-yasg==1.17.0
+python-decouple==3.3
