@@ -1,23 +1,31 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import Survey,Question, Answers, Response, Option
+from .models import Survey, Question, Answer, Response, Option
+from rest_framework.exceptions import ValidationError
 
 
 class OptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Option
-        fields =('id', 'value')
+        fields = ('text',)
 
 
 class QuestionSerializer(serializers.ModelSerializer):
+    options = OptionSerializer(many=True)
 
     class Meta:
         model = Question
-        fields = '__all__'
+        fields = ('text', 'type', 'survey', 'options')
+
+    def create(self, validated_data):
+        options = validated_data.pop('options')
+        question = Question.objects.create(**validated_data)
+        for option in options:
+            Option.objects.create(text=option['text'], question=question)
+        return question
 
 
 class SurveySerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Survey
         fields = '__all__'
@@ -46,34 +54,36 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
 
 class ResponseListSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Response
         fields = '__all__'
 
 
-class AnswersSerializer(serializers.ModelSerializer):
-
+class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Answers
-        fields = ('text',)
+        model = Answer
+        fields = ('text', 'question')
 
 
 class ResponseSerializer(serializers.ModelSerializer):
-    answers = AnswersSerializer(many=True)
+    answers = AnswerSerializer(many=True)
 
     class Meta:
         model = Response
         fields = ('survey', 'created', 'answers')
 
-    # todo write validate function
     def validate_answers(self, answers):
-        pass
+        for answer in answers:
+            question_type = answer['question'].type
+            if question_type == 'ONEANSWER' or question_type == 'MULTIANSWER':
+                if not answer['text'].isdigit():
+                    raise ValidationError('You should choose answer from options')
+        return answers
 
     def create(self, validated_data):
         answers = validated_data.pop('answers')
-        response = Response.objects.create(**validated_data, user=self.context['request'].user)
-        Answers.objects.create(response=response, user=self.context['request'].user, text=answers)
+        response = Response.objects.create(survey=validated_data.pop('survey'), user=self.context['request'].user)
+        for answer in answers:
+            Answer.objects.create(response=response, user=self.context['request'].user, text=answer['text'],
+                                  question=answer['question'])
         return response
-
-
